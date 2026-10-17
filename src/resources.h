@@ -1,0 +1,5 @@
+#pragma once
+
+#define IDR_FACE_DETECTION 101
+#define IDR_FACE_LANDMARK 102
+#define IDR_CANONICAL_FACE 103
