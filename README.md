@@ -8,6 +8,8 @@ If you want to combine the inputs generated this way with inputs from other sour
 
 For downloads see the [latest release](https://github.com/jfedor2/face-hid-transmitter/releases/latest).
 
+See also: [Voice HID Transmitter](https://github.com/jfedor2/voice-hid-transmitter), [Overlay HID Transmitter](https://github.com/jfedor2/overlay-hid-transmitter).
+
 ![screenshot](images/screenshot.png)
 
 ## Usage
@@ -36,3 +38,5 @@ Pass `--start` on the command line to start in the running state.
 The software in this repository is licensed under the [MIT License](LICENSE).
 
 The MediaPipe models and canonical face model are from Google, under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+
+The UI uses [Dear ImGui](https://github.com/ocornut/imgui) (MIT) and configuration uses [nlohmann/json](https://github.com/nlohmann/json) (MIT).
