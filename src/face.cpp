@@ -103,17 +103,26 @@ static double now_ms() {
     return duration<double, std::milli>(steady_clock::now().time_since_epoch()).count();
 }
 
+// The module (exe or DLL) this code is linked into, which holds the models.
+static HMODULE this_module() {
+    HMODULE module = nullptr;
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+        (LPCWSTR) &this_module, &module);
+    return module;
+}
+
 static bool load_resource(int id, const uint8_t*& data, size_t& size) {
-    HRSRC res = FindResourceW(nullptr, MAKEINTRESOURCEW(id), (LPCWSTR) RT_RCDATA);
+    const HMODULE module = this_module();
+    HRSRC res = FindResourceW(module, MAKEINTRESOURCEW(id), (LPCWSTR) RT_RCDATA);
     if (res == nullptr) {
         return false;
     }
-    HGLOBAL handle = LoadResource(nullptr, res);
+    HGLOBAL handle = LoadResource(module, res);
     if (handle == nullptr) {
         return false;
     }
     data = (const uint8_t*) LockResource(handle);
-    size = SizeofResource(nullptr, res);
+    size = SizeofResource(module, res);
     return data != nullptr;
 }
 
