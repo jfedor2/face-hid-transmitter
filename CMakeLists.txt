@@ -54,6 +54,7 @@ target_include_directories(imgui_lib PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_D
 add_library(fht_core STATIC
   src/tflite.cpp
   src/face.cpp
+  src/face_win.cpp
   src/camera.cpp
   src/mapping.cpp
   src/sender.cpp

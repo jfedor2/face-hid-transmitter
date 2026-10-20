@@ -3,17 +3,13 @@
 
 #include "face.h"
 
-#include <windows.h>
-
-#include <wincodec.h>
-
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <locale>
 #include <sstream>
 
-#include "resources.h"
 
 static constexpr float PI = 3.14159265358979f;
 
@@ -103,29 +99,6 @@ static double now_ms() {
     return duration<double, std::milli>(steady_clock::now().time_since_epoch()).count();
 }
 
-// The module (exe or DLL) this code is linked into, which holds the models.
-static HMODULE this_module() {
-    HMODULE module = nullptr;
-    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-        (LPCWSTR) &this_module, &module);
-    return module;
-}
-
-static bool load_resource(int id, const uint8_t*& data, size_t& size) {
-    const HMODULE module = this_module();
-    HRSRC res = FindResourceW(module, MAKEINTRESOURCEW(id), (LPCWSTR) RT_RCDATA);
-    if (res == nullptr) {
-        return false;
-    }
-    HGLOBAL handle = LoadResource(module, res);
-    if (handle == nullptr) {
-        return false;
-    }
-    data = (const uint8_t*) LockResource(handle);
-    size = SizeofResource(module, res);
-    return data != nullptr;
-}
-
 // Fills a w x h RGB tensor from the image through an affine map: the center of
 // tensor pixel (i, j) comes from image point origin + (i + 0.5) * ax + (j + 0.5) * ay
 // (in pixels). Values are 0..1 scaled by scale and shifted by offset. Points
@@ -176,14 +149,12 @@ static void sample_affine(const Image& img, float* out, int w, int h, float ox, 
     }
 }
 
-bool FaceTracker::init(std::string& error) {
-    const uint8_t* data;
-    size_t size;
-    if (!load_resource(IDR_FACE_DETECTION, data, size) || !detector_.load(data, size)) {
+bool FaceTracker::init(const FaceModels& models, std::string& error) {
+    if (!models.detector || !detector_.load(models.detector, models.detector_size)) {
         error = "face detection model: " + detector_.error();
         return false;
     }
-    if (!load_resource(IDR_FACE_LANDMARK, data, size) || !landmarker_.load(data, size)) {
+    if (!models.landmarker || !landmarker_.load(models.landmarker, models.landmarker_size)) {
         error = "face landmark model: " + landmarker_.error();
         return false;
     }
@@ -200,17 +171,20 @@ bool FaceTracker::init(std::string& error) {
         return false;
     }
 
-    if (!load_resource(IDR_CANONICAL_FACE, data, size)) {
+    if (!models.canonical_obj) {
         error = "canonical face model missing";
         return false;
     }
     canonical_.clear();
-    std::istringstream obj(std::string((const char*) data, size));
+    std::istringstream obj(std::string((const char*) models.canonical_obj, models.canonical_obj_size));
     std::string line;
     while (std::getline(obj, line)) {
         if (line.rfind("v ", 0) == 0) {
+            // Classic locale, so the decimal point is '.' whatever the host app set.
+            std::istringstream coords(line.substr(2));
+            coords.imbue(std::locale::classic());
             Vec3 v;
-            if (sscanf_s(line.c_str() + 2, "%f %f %f", &v.x, &v.y, &v.z) == 3) {
+            if (coords >> v.x >> v.y >> v.z) {
                 canonical_.push_back(v);
             }
         }
@@ -559,38 +533,4 @@ void head_angles(const Mat3& rotation, const Mat3& neutral, float& yaw, float& p
     yaw *= 180 / PI;
     pitch *= 180 / PI;
     roll *= 180 / PI;
-}
-
-bool load_image_file(const std::wstring& path, Image& image) {
-    IWICImagingFactory* factory = nullptr;
-    if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory)))) {
-        return false;
-    }
-    bool ok = false;
-    IWICBitmapDecoder* decoder = nullptr;
-    IWICBitmapFrameDecode* frame = nullptr;
-    IWICFormatConverter* converter = nullptr;
-    UINT w = 0, h = 0;
-    if (SUCCEEDED(factory->CreateDecoderFromFilename(path.c_str(), nullptr, GENERIC_READ,
-            WICDecodeMetadataCacheOnDemand, &decoder)) &&
-        SUCCEEDED(decoder->GetFrame(0, &frame)) && SUCCEEDED(factory->CreateFormatConverter(&converter)) &&
-        SUCCEEDED(converter->Initialize(frame, GUID_WICPixelFormat32bppBGRA, WICBitmapDitherTypeNone, nullptr, 0,
-            WICBitmapPaletteTypeCustom)) &&
-        SUCCEEDED(converter->GetSize(&w, &h))) {
-        image.width = (int) w;
-        image.height = (int) h;
-        image.pixels.resize((size_t) w * h * 4);
-        ok = SUCCEEDED(converter->CopyPixels(nullptr, w * 4, (UINT) image.pixels.size(), image.pixels.data()));
-    }
-    if (converter) {
-        converter->Release();
-    }
-    if (frame) {
-        frame->Release();
-    }
-    if (decoder) {
-        decoder->Release();
-    }
-    factory->Release();
-    return ok;
 }

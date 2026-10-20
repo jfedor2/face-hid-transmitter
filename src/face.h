@@ -60,13 +60,29 @@ struct FaceResult {
     float landmark_ms = 0.0f;
 };
 
+// The model files: face_detection_short_range.tflite, face_landmark.tflite
+// and canonical_face_model.obj.
+struct FaceModels {
+    const uint8_t* detector = nullptr;
+    size_t detector_size = 0;
+    const uint8_t* landmarker = nullptr;
+    size_t landmarker_size = 0;
+    const char* canonical_obj = nullptr;
+    size_t canonical_obj_size = 0;
+};
+
 // Finds a face with the MediaPipe face detector, then follows it from frame to
 // frame with the face landmark model (468 points), which also says when it's
 // lost. Not thread safe: use from one thread.
 class FaceTracker {
 public:
-    // Loads the models from the exe's resources.
+    // Prepares the models. The data is only used during the call.
+    bool init(const FaceModels& models, std::string& error);
+#ifdef _WIN32
+    // Loads the models from the resources of the exe or DLL this code is
+    // linked into (see resources.h).
     bool init(std::string& error);
+#endif
 
     // Horizontal field of view of the camera, for correcting the perspective
     // of a face away from the image center.
@@ -103,5 +119,7 @@ private:
 // looking up. Roll > 0: tilted towards the right shoulder.
 void head_angles(const Mat3& rotation, const Mat3& neutral, float& yaw, float& pitch, float& roll);
 
+#ifdef _WIN32
 // For tests: loads an image file (anything WIC can decode).
 bool load_image_file(const std::wstring& path, Image& image);
+#endif
